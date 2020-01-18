@@ -1,0 +1,58 @@
+/* Unload the Census Regions table into a parquet file                                                        */
+/* the child elements to a separate column.                                                                   */
+/*                                                                                                            */
+/* To retain the table schema in the output file, use a simple SELECT statement (e.g. SELECT * FROM cities).  */
+/* To retain the column names in the output file, use the HEADER = TRUE copy option.                          */
+
+
+/* Create a file format object that specifies the Parquet file format type.                                   */
+/* Accepts the default values for other options.                                                              */
+
+create or replace file format parquet_format
+  type = 'parquet';
+
+/* Create a temporary internal stage that references the file format object.                                  */
+/* Similar to temporary tables, temporary stages are automatically dropped at the end of the session.         */
+
+create or replace temporary stage export_stage
+  file_format = parquet_format;
+
+
+copy into @export_stage/out/parquet_ from (
+select
+  *
+  from
+    CENSUS_REGIONS
+    c)
+  file_format = (type = 'parquet')
+  header = true;
+
+/* Query the staged Parquet file.                                                                             */
+
+select t.$1 from @export_stage/out/ t;
+
+
+/* set up access for Snowflake stages in GCP
+create storage integration gcs_int
+  type = external_stage
+  storage_provider = gcs
+  enabled = true
+  storage_allowed_locations = ('gcs://shingilooker/snowflake_unload');
+
+
+/* find your google service acct name
+desc storage integration gcs_int;
+
+
+
+/* copy to google cloud storage
+
+copy into 'gcs://shingilooker/snowflake_unload'
+  from (select * from CENSUS_REGIONS)
+  file_format = (format_name = 'parquet_format')
+  storage_integration = gcs_int;
+
+
+bq load \
+dataset.table \
+  gcs://shingilooker/snowflake_unload
