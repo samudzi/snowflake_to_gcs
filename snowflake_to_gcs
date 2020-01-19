@@ -1,4 +1,4 @@
-/* Unload the 3digit to 5digit Zipcode mapping table into a parquet file                                                        */
+/* Unload the Census Regions table into a parquet file                                                        */
 /* the child elements to a separate column.                                                                   */
 /*                                                                                                            */
 /* To retain the table schema in the output file, use a simple SELECT statement (e.g. SELECT * FROM cities).  */
@@ -19,11 +19,14 @@ create or replace temporary stage export_stage
 
 
 copy into @export_stage/out/parquet_ from (
-select
-  *
-  from
-    MONTHLYHPI
-    c)
+SELECT
+monthlyhpi."zip3"  AS "zip3",
+ziptolatlong."ZIP"  AS "zip5"
+FROM PUBLIC.ZIPTOLATLONG  AS ziptolatlong
+LEFT JOIN PUBLIC.MONTHLYHPI  AS monthlyhpi ON LEFT((ziptolatlong."ZIP"),3) = (monthlyhpi."zip3")
+
+GROUP BY 1,2
+ORDER BY 1)
   file_format = (type = 'parquet')
   header = true;
 
@@ -48,9 +51,9 @@ desc storage integration gcs_int;
 /* copy to google cloud storage
 
 copy into 'gcs://shingilooker/snowflake_unload/snowflake_zipmapping.parquet'
-  from (SELECT
-	ziptolatlong."ZIP"  AS "ziptolatlong.zip",
-	monthlyhpi."zip3"  AS "monthlyhpi.zip3"
+  from (  SELECT
+	monthlyhpi."zip3"  AS "zip3",
+	ziptolatlong."ZIP"  AS "zip5"
 FROM PUBLIC.ZIPTOLATLONG  AS ziptolatlong
 LEFT JOIN PUBLIC.MONTHLYHPI  AS monthlyhpi ON LEFT((ziptolatlong."ZIP"),3) = (monthlyhpi."zip3")
 
@@ -67,5 +70,6 @@ ORDER BY 1)
 /* Can use the BQ UI to load into BQ or use the bq cli */
 
 bq load \
-dataset.table \
-  gcs://shingilooker/snowflake_unload
+--source_format=PARQUET \
+house_price_model.zipcode_digit_mapping \
+  gs://shingilooker/snowflake_unload/snowflake_zipmapping.parquet
